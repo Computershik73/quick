@@ -34,7 +34,11 @@ int main(int argc, char *argv[])
     //Causes some crashes on Windows, Symbian 9.2-9.3?, research it
     //Requires custom fonts, but they can't be install on iOS
 #if QT_VERSION < 0x050000
-    //QApplication::setGraphicsSystem("opengl");
+#ifdef Q_OS_SYMBIAN
+#ifdef SYMBIAN3_READY
+    QApplication::setGraphicsSystem("opengl");
+#endif
+#endif
 #endif
 
     QApplication app(argc, argv);

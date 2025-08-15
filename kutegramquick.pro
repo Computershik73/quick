@@ -1,5 +1,5 @@
-TARGET = Kutegram
-APPNAME = Kutegram
+TARGET = "Kutegram"
+APPNAME = "Kutegram"
 VERSION = 1.2.1
 PKG_VERSION = 1,2,1
 DEFINES += VERSION=\\"$$VERSION\\"
@@ -69,14 +69,14 @@ symbian {
     vendor_info = \
         " " \
         "; Localised Vendor name" \
-        "%{\"curoviyxru\"}" \
+        "%{\"curoviyxru (fork by Computershik)\"}" \
         " " \
         "; Unique Vendor name" \
-        ":\"curoviyxru\"" \
+        ":\"curoviyxru (fork by Computershik)\"" \
         " "
     package.pkg_prerules += vendor_info
 
-    header = "$${LITERAL_HASH}{\"Kutegram\"},(0xE0713D51),$$PKG_VERSION,TYPE=SA,RU"
+    header = "$${LITERAL_HASH}{\"Kutegram fork\"},(0xE0713D51),$$PKG_VERSION,TYPE=SA,RU"
     package.pkg_prerules += header
 
     DEPLOYMENT += package
