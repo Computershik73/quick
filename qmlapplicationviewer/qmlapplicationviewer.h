@@ -30,7 +30,7 @@ public:
         ScreenOrientationAuto
     };
 
-    explicit QmlApplicationViewer(QObject *parent = 0);
+    explicit QmlApplicationViewer(QWidget *parent = 0);
     virtual ~QmlApplicationViewer();
 
     void setMainQmlFile(const QString &file);

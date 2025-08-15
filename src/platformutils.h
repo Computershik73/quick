@@ -15,6 +15,8 @@
 #include "QPiglerAPI.h"
 #endif
 
+#include <QVariantMap>
+
 class PlatformUtils : public QObject
 {
     Q_OBJECT

@@ -16,24 +16,23 @@
 #include <apgcli.h>
 #include <apgtask.h>
 #include <eikenv.h>
-#else
-#include <QDesktopServices>
 #endif
+#include <QDesktopServices>
 
 #include <crypto.h>
 
 PlatformUtils::PlatformUtils(QObject *parent)
     : QObject(parent)
     , window(dynamic_cast<QWidget*>(parent))
-#if !defined(Q_OS_SYMBIAN) && !defined(Q_OS_WINPHONE)
+    #if !defined(Q_OS_SYMBIAN) && !defined(Q_OS_WINPHONE)
     , trayIcon(this)
     , trayMenu()
-#endif
+    #endif
     , unread()
-#ifdef SYMBIAN3_READY
+    #ifdef SYMBIAN3_READY
     , pigler()
     , piglerId(-1)
-#endif
+    #endif
 {
     if (window) {
         window->setAttribute(Qt::WA_DeleteOnClose, false);
@@ -231,56 +230,95 @@ void PlatformUtils::gotNewMessage(qint64 peerId, QString peerName, QString sende
 void openUrl(QUrl url)
 {
 #ifdef Q_OS_SYMBIAN
-    static TUid KUidBrowser = {0x10008D39};
-    _LIT(KBrowserPrefix, "4 ");
 
-    // convert url to encoded version of QString
-    QString encUrl(QString::fromUtf8(url.toEncoded()));
-    // using qt_QString2TPtrC() based on
-    // <http://qt.gitorious.org/qt/qt/blobs/4.7/src/corelib/kernel/qcore_symbian_p.h#line102>
+    // 1. Определяем, какой URL будем открывать
+    QString mimeType = "application/x-web-browse"; // MIME-тип для обычного браузера
+    bool useXPreviewer = false;
+    const TUid KUidXPreviewer = { 0xE11B29D3 };
+    QRegExp rx("^(https?://)?(twitter\\.com|x\\.com)/[A-Za-z0-9_]{1,15}/status/\\d+(/.*)?$", Qt::CaseInsensitive);
+    if (rx.exactMatch(url.toString())) {
+        // Если это ссылка на твит
+        mimeType = "x-scheme-handler/xpreview"; // используем наш MIME-тип
+        useXPreviewer = true;
+    }
+
+    qDebug() << "Открываю URL:" << url.toString() << "с MIME-типом:" << mimeType;
+
+    // Вызываем Symbian API с правильными данными
+    TRAPD(err, {
+
+          // Получаем доступ к сессии оконного сервера
+          RWsSession& wsSession = CCoeEnv::Static()->WsSession();
+            TApaTaskList taskList(wsSession);
+    TApaTask task = taskList.FindApp(KUidXPreviewer);
+
+    if (task.Exists()) {
+        qDebug() << "XPreviewer is already running. Terminating it...";
+        // Если приложение найдено, просим его завершиться
+        task.EndTask();
+
+        // Даем системе небольшую паузу (например, 400 мс),
+        // чтобы процесс успел завершиться.
+        User::After(400000);
+    } else {
+        qDebug() << "XPreviewer is not running. Proceeding with launch.";
+    }
+
+
+
+    QString encUrl = QString::fromUtf8(url.toEncoded());
     TPtrC tUrl(TPtrC16(static_cast<const TUint16*>(encUrl.utf16()), encUrl.length()));
 
-    // Following code based on
-    // <http://www.developer.nokia.com/Community/Wiki/Launch_default_web_browser_using_Symbian_C%2B%2B>
-
-    // create a session with apparc server
     RApaLsSession appArcSession;
     User::LeaveIfError(appArcSession.Connect());
     CleanupClosePushL<RApaLsSession>(appArcSession);
 
-    // get the default application uid for application/x-web-browse
-    TDataType mimeDatatype(_L8("application/x-web-browse"));
+    // Ищем UID приложения по MIME-типу
+    TDataType mimeDatatype(TPtrC8((const TUint8*)mimeType.toAscii().constData()));
     TUid handlerUID;
     appArcSession.AppForDataType(mimeDatatype, handlerUID);
 
-    // if UiD not found, use the native browser
-    if (handlerUID.iUid == 0 || handlerUID.iUid == -1)
+    // Если для нашей схемы ничего не найдено (или для веб), используем браузер по умолчанию
+    if (handlerUID.iUid == 0 || handlerUID.iUid == -1) {
+        static TUid KUidBrowser = {0x10008D39};
         handlerUID = KUidBrowser;
-
-    // Following code based on
-    // <http://qt.gitorious.org/qt/qt/blobs/4.7/src/gui/util/qdesktopservices_s60.cpp#line213>
-
-    HBufC* buf16 = HBufC::NewLC(tUrl.Length() + KBrowserPrefix.iTypeLength);
-    buf16->Des().Copy(KBrowserPrefix); // Prefix used to launch correct browser view
-    buf16->Des().Append(tUrl);
-
-    TApaTaskList taskList(CCoeEnv::Static()->WsSession());
-    TApaTask task = taskList.FindApp(handlerUID);
-    if (task.Exists()) {
-        // Switch to existing browser instance
-        task.BringToForeground();
-        HBufC8* param8 = HBufC8::NewLC(buf16->Length());
-        param8->Des().Append(buf16->Des());
-        task.SendMessage(TUid::Uid(0), *param8); // Uid is not used
-        CleanupStack::PopAndDestroy(param8);
-    } else {
-        // Start a new browser instance
-        TThreadId id;
-        appArcSession.StartDocument(*buf16, handlerUID, id);
     }
 
-    CleanupStack::PopAndDestroy(buf16);
-    CleanupStack::PopAndDestroy(&appArcSession);
+    // Формируем буфер С АРГУМЕНТОМ (URL).
+    // УБИРАЕМ ПРЕФИКС "4 ", если только мы не вызываем стандартный браузер принудительно.
+    HBufC* argument = HBufC::NewLC(tUrl.Length() + (useXPreviewer ? 0 : 4));
+    TPtr argumentPtr = argument->Des();
+
+    if (!useXPreviewer) {
+        _LIT(KBrowserPrefix, "4 ");
+        argumentPtr.Copy(KBrowserPrefix); // Добавляем префикс только для браузера
+    }
+    argumentPtr.Append(tUrl);
+
+
+    TApaTaskList taskList2(CCoeEnv::Static()->WsSession());
+    TApaTask task2 = taskList2.FindApp(handlerUID);
+
+    if (task2.Exists()) {
+        task2.BringToForeground();
+        HBufC8* param8 = HBufC8::NewLC(argument->Length());
+        param8->Des().Append(*argument);
+        task2.SendMessage(TUid::Uid(0), *param8);
+        CleanupStack::PopAndDestroy(param8);
+    } else {
+        TThreadId id;
+        appArcSession.StartDocument(*argument, handlerUID, id);
+        //}
+
+        CleanupStack::PopAndDestroy(argument);
+        CleanupStack::PopAndDestroy(&appArcSession);
+    }
+    });
+
+if (err != KErrNone) {
+    qDebug() << "Symbian API error:" << err;
+}
+
 #else
     QDesktopServices::openUrl(url);
 #endif

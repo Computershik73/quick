@@ -80,7 +80,7 @@ QString QmlApplicationViewerPrivate::adjustPath(const QString &path)
 QmlApplicationViewer::QmlApplicationViewer(QObject *parent) :
     QQuickView(dynamic_cast<QWindow*>(parent)),
 #else
-QmlApplicationViewer::QmlApplicationViewer(QObject *parent) :
+QmlApplicationViewer::QmlApplicationViewer(QWidget *parent) :
     QDeclarativeView(parent),
 #endif
     m_d(new QmlApplicationViewerPrivate)
